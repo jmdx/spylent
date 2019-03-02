@@ -15,11 +15,24 @@ use spylent::schema::*;
 use spylent::connection::*;
 use diesel::query_dsl::*;
 use diesel::QueryResult;
+use dotenv::dotenv;
+use reqwest;
 
+//fn threshold() {
+//    dotenv("THRESHOLD").map(|t| t.parse() as i64).or_else(1)
+//}
 
 #[post("/api/point", format = "application/json", data = "<point>")]
 fn add_point(point: Json<NewPoint>, connection: DbConn) -> String {
     let new_point: NewPoint = point.into_inner();
+
+    let mut map = HashMap::new();
+    map.insert("text", "COFFEE");
+
+    let client = reqwest::Client::new();
+    let res = client.post("https://hooks.slack.com/services/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")
+        .json(&map)
+        .send();
     let _: QueryResult<Point> = diesel::insert_into(points::table)
         .values(&new_point)
         .get_result(&*connection);
@@ -32,8 +45,18 @@ fn index() -> Template {
     Template::render("index", &context)
 }
 
+/// Configure Rocket to serve on the port requested by Heroku.
+fn configure() -> rocket::Config {
+    let mut config = rocket::Config::active().expect("could not load configuration");
+    if let Ok(port_str) = dotenv::var("PORT") {
+        let port = port_str.parse().expect("could not parse PORT");
+        config.set_port(port);
+    }
+    config
+}
+
 fn main() {
-    rocket::ignite()
+    rocket::custom(configure())
         .manage(connection::init_pool())
         .mount("/", routes![index, add_point])
         .attach(Template::fairing())
