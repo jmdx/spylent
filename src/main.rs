@@ -24,15 +24,17 @@ use reqwest;
 
 #[post("/api/point", format = "application/json", data = "<point>")]
 fn add_point(point: Json<NewPoint>, connection: DbConn) -> String {
+    let slack_url = dotenv::var("SLACK_URL").expect("No slack url configured :(");
+    let threshold: f64 = dotenv::var("THRESHOLD").expect("No threshold configured :(").parse().unwrap();
+    if &point.value > &threshold {
+        let mut map = HashMap::new();
+        map.insert("text", "COFFEE");
+        let client = reqwest::Client::new();
+        let res = client.post(&slack_url)
+            .json(&map)
+            .send();
+    }
     let new_point: NewPoint = point.into_inner();
-
-    let mut map = HashMap::new();
-    map.insert("text", "COFFEE");
-
-    let client = reqwest::Client::new();
-    let res = client.post("https://hooks.slack.com/services/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")
-        .json(&map)
-        .send();
     let _: QueryResult<Point> = diesel::insert_into(points::table)
         .values(&new_point)
         .get_result(&*connection);
