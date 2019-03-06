@@ -24,7 +24,7 @@ use reqwest;
 fn add_point(point: Json<NewPoint>, connection: DbConn) -> String {
     let slack_url = dotenv::var("SLACK_URL").expect("No slack url configured :(");
     let threshold: f64 = dotenv::var("THRESHOLD").expect("No threshold configured :(").parse().unwrap();
-    let query = sql::<BigInt>("SELECT count(*) FROM points WHERE created > extract(epoch from now()) - 300 AND value > 20.0;");
+    let query = sql::<BigInt>("SELECT count(*) FROM points WHERE created > extract(epoch from now()) - 300;");
     let last_n = *query.load::<i64>(&*connection).expect("Can't query points").first().unwrap();
     println!("{:?}", last_n);
     if &point.value > &threshold && last_n < 1 {
@@ -34,11 +34,11 @@ fn add_point(point: Json<NewPoint>, connection: DbConn) -> String {
         let _res = client.post(&slack_url)
             .json(&map)
             .send();
+        let new_point: NewPoint = point.into_inner();
+        let _: QueryResult<Point> = diesel::insert_into(points)
+            .values(&new_point)
+            .get_result(&*connection);
     }
-    let new_point: NewPoint = point.into_inner();
-    let _: QueryResult<Point> = diesel::insert_into(points)
-        .values(&new_point)
-        .get_result(&*connection);
     "Success".into()
 }
 
